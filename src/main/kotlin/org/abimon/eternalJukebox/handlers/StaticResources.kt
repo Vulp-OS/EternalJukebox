@@ -11,10 +11,6 @@ object StaticResources {
         router.get().handler(StaticHandler.create(EternalJukebox.config.webRoot))
     }
 
-    init {
-//        log("Initialised Static Resources")
-    }
-
 //    fun profile(context: RoutingContext) {
 //        if (ProfileAPI.googleClient == null || ProfileAPI.googleSecret == null)
 //            return context.response().putHeader("X-Client-UID", context.clientInfo.userUID).setStatusCode(500).end {

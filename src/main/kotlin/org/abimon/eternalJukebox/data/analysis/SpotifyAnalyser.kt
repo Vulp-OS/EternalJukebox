@@ -16,9 +16,9 @@ import java.util.*
 import java.util.concurrent.atomic.AtomicReference
 
 object SpotifyAnalyser : IAnalyser {
-    private val REAUTH_TIMER = Timer()
-    val token: AtomicReference<String> = AtomicReference("")
-    val logger = LoggerFactory.getLogger("SpotifyAnalyser")
+    // private val REAUTH_TIMER = Timer()
+    private val token: AtomicReference<String> = AtomicReference("")
+    private val logger = LoggerFactory.getLogger("SpotifyAnalyser")
 
     override suspend fun search(query: String, clientInfo: ClientInfo?): Array<JukeboxInfo> {
         var error: SpotifyError? = null
@@ -347,7 +347,7 @@ object SpotifyAnalyser : IAnalyser {
         return track
     }
 
-    suspend fun reload(): SpotifyError? {
+    private suspend fun reload(): SpotifyError? {
         var error: SpotifyError? = null
         val success = exponentiallyBackoff(64000, 8) { attempt ->
             logger.trace("Attempting to reload Spotify Token; Attempt {}", attempt)

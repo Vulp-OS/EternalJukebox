@@ -20,13 +20,21 @@ import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.abs
 
 object YoutubeAudioSource : IAudioSource {
-    val apiKey: String?
-    val uuid: String
+    private val apiKey: String? = (EternalJukebox.config.audioSourceOptions["API_KEY"]
+        ?: EternalJukebox.config.audioSourceOptions["apiKey"]) as? String
+    private val uuid: String
         get() = UUID.randomUUID().toString()
-    val format: String
-    val command: List<String>
+    val format: String = (EternalJukebox.config.audioSourceOptions["AUDIO_FORMAT"]
+        ?: EternalJukebox.config.audioSourceOptions["audioFormat"]) as? String ?: "m4a"
+    val command: List<String> = ((EternalJukebox.config.audioSourceOptions["AUDIO_COMMAND"]
+        ?: EternalJukebox.config.audioSourceOptions["audioCommand"]) as? List<*>)?.map { "$it" }
+        ?: ((EternalJukebox.config.audioSourceOptions["AUDIO_COMMAND"]
+            ?: EternalJukebox.config.audioSourceOptions["audioCommand"]) as? String)?.split("\\s+".toRegex())
+                ?: if (System.getProperty("os.name").toLowerCase()
+                .contains("windows")
+        ) listOf("yt.bat") else listOf("bash", "yt.sh")
 
-    val logger = LoggerFactory.getLogger("YoutubeAudioSource")
+    private val logger = LoggerFactory.getLogger("YoutubeAudioSource")
 
     val mimes = mapOf(
         "m4a" to "audio/m4a",
@@ -36,8 +44,8 @@ object YoutubeAudioSource : IAudioSource {
         "wav" to "audio/wav"
     )
 
-    val hitQuota = AtomicLong(-1)
-    val QUOTA_TIMEOUT = TimeUnit.MILLISECONDS.convert(10, TimeUnit.MINUTES)
+    private val hitQuota = AtomicLong(-1)
+    private val QUOTA_TIMEOUT = TimeUnit.MILLISECONDS.convert(10, TimeUnit.MINUTES)
 
     override suspend fun provide(info: JukeboxInfo, clientInfo: ClientInfo?): DataSource? {
         if (apiKey == null)
@@ -59,8 +67,8 @@ object YoutubeAudioSource : IAudioSource {
             addAll(artistTitle)
             addAll(artistTitleLyrics)
         }.sortedWith(Comparator { o1, o2 ->
-            Math.abs(info.duration - o1.contentDetails.duration.toMillis())
-                .compareTo(Math.abs(info.duration - o2.contentDetails.duration.toMillis()))
+            abs(info.duration - o1.contentDetails.duration.toMillis())
+                .compareTo(abs(info.duration - o2.contentDetails.duration.toMillis()))
         })
 
         val closest = both.firstOrNull()
@@ -254,7 +262,7 @@ object YoutubeAudioSource : IAudioSource {
         return EternalJukebox.jsonMapper.readValue(result, YoutubeContentResults::class.java).items.firstOrNull()
     }
 
-    fun getMultiContentDetailsWithKey(ids: List<String>): List<YoutubeContentItem> {
+    private fun getMultiContentDetailsWithKey(ids: List<String>): List<YoutubeContentItem> {
         val lastQuota = hitQuota.get()
 
         if (lastQuota != -1L) {
@@ -285,7 +293,7 @@ object YoutubeAudioSource : IAudioSource {
         return EternalJukebox.jsonMapper.readValue(result, YoutubeContentResults::class.java).items
     }
 
-    fun searchYoutubeWithKey(query: String, maxResults: Int = 5): List<YoutubeSearchItem> {
+    private fun searchYoutubeWithKey(query: String, maxResults: Int = 5): List<YoutubeSearchItem> {
         val lastQuota = hitQuota.get()
 
         if (lastQuota != -1L) {
@@ -317,17 +325,6 @@ object YoutubeAudioSource : IAudioSource {
     }
 
     init {
-        apiKey = (EternalJukebox.config.audioSourceOptions["API_KEY"]
-            ?: EternalJukebox.config.audioSourceOptions["apiKey"]) as? String
-        format = (EternalJukebox.config.audioSourceOptions["AUDIO_FORMAT"]
-            ?: EternalJukebox.config.audioSourceOptions["audioFormat"]) as? String ?: "m4a"
-        command = ((EternalJukebox.config.audioSourceOptions["AUDIO_COMMAND"]
-            ?: EternalJukebox.config.audioSourceOptions["audioCommand"]) as? List<*>)?.map { "$it" }
-            ?: ((EternalJukebox.config.audioSourceOptions["AUDIO_COMMAND"]
-                ?: EternalJukebox.config.audioSourceOptions["audioCommand"]) as? String)?.split("\\s+".toRegex())
-                    ?: if (System.getProperty("os.name").toLowerCase()
-                    .contains("windows")
-            ) listOf("yt.bat") else listOf("bash", "yt.sh")
 
         if (apiKey == null)
             logger.warn(

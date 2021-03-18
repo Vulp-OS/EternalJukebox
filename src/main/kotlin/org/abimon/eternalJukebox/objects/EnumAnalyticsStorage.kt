@@ -5,7 +5,7 @@ import org.abimon.eternalJukebox.data.analytics.InfluxAnalyticsStorage
 import org.abimon.eternalJukebox.data.analytics.LocalAnalyticStorage
 import kotlin.reflect.KClass
 
-enum class EnumAnalyticsStorage(val klass: KClass<out IAnalyticsStorage>) {
+enum class EnumAnalyticsStorage(private val klass: KClass<out IAnalyticsStorage>) {
     LOCAL(LocalAnalyticStorage::class),
     INFLUX(InfluxAnalyticsStorage::class);
 

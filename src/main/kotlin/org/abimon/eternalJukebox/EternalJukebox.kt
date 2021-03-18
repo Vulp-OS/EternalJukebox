@@ -49,23 +49,23 @@ object EternalJukebox {
             .enable(DeserializationFeature.ACCEPT_SINGLE_VALUE_AS_ARRAY)
             .setSerializationInclusion(JsonInclude.Include.NON_ABSENT)
 
-    val yamlMapper: ObjectMapper = ObjectMapper(YAMLFactory())
+    private val yamlMapper: ObjectMapper = ObjectMapper(YAMLFactory())
             .registerModules(Jdk8Module(), KotlinModule(), JavaTimeModule(), ParameterNamesModule())
             .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
             .enable(DeserializationFeature.ACCEPT_SINGLE_VALUE_AS_ARRAY)
             .setSerializationInclusion(JsonInclude.Include.NON_ABSENT)
 
-    val jsonConfig: File = File("config.json")
-    val yamlConfig: File = File("config.yaml")
+    private val jsonConfig: File = File("config.json")
+    private val yamlConfig: File = File("config.yaml")
 
     val BASE_64_URL = charArrayOf('A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '-', '_')
 
-    val secureRandom: SecureRandom = SecureRandom()
-    val snowstorm: Snowstorm
+    private val secureRandom: SecureRandom = SecureRandom()
+    private val snowstorm: Snowstorm
 
     val config: JukeboxConfig
     val vertx: Vertx
-    val webserver: HttpServer
+    private val webserver: HttpServer
 
     val storage: IStorage
     val audio: IAudioSource?
@@ -77,10 +77,10 @@ object EternalJukebox {
 
     val database: IDatabase
 
-    val visitorAlgorithm: Algorithm
-    val visitorVerifier: JWTVerifier
+    private val visitorAlgorithm: Algorithm
+    private val visitorVerifier: JWTVerifier
 
-    val logger = LoggerFactory.getLogger("EternalBox")
+    private val logger = LoggerFactory.getLogger("EternalBox")
 
     val oldVisitorToken: String
         get() = JWT.create()
@@ -91,37 +91,36 @@ object EternalJukebox {
                 .withIssuedAt(Date.from(Instant.now()))
                 .sign(visitorAlgorithm)
 
-    val schedule: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor()
-    val apis = ArrayList<IAPI>()
+    private val schedule: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor()
+    private val apis = ArrayList<IAPI>()
 
-    val logStreams: Map<String, PrintStream>
-    val emptyPrintStream = PrintStream(object: OutputStream() {
+    private val logStreams: Map<String, PrintStream>
+    private val emptyPrintStream = PrintStream(object: OutputStream() {
         override fun write(b: Int) {}
         override fun write(b: ByteArray) {}
         override fun write(b: ByteArray?, off: Int, len: Int) {}
     })
 
-    val hourlyVisitorsAddress: ConcurrentSkipListSet<String> = ConcurrentSkipListSet()
-    val referrers: ConcurrentSkipListSet<String> = ConcurrentSkipListSet()
-    val referrersFile = File("referrers.txt")
+    private val hourlyVisitorsAddress: ConcurrentSkipListSet<String> = ConcurrentSkipListSet()
+    private val referrers: ConcurrentSkipListSet<String> = ConcurrentSkipListSet()
+    private val referrersFile = File("referrers.txt")
 
-    fun start() {
+    private fun start() {
         webserver.listen(config.port)
         logger.info("Now listening on port {}", config.port)
     }
 
     @JvmStatic
     fun main(args: Array<String>) {
-        EternalJukebox.start()
+        start()
     }
 
     init {
-        if (jsonConfig.exists())
-            config = jsonMapper.readValue(jsonConfig, JukeboxConfig::class.java)
-        else if (yamlConfig.exists())
-            config = yamlMapper.readValue(yamlConfig, JukeboxConfig::class.java)
-        else
-            config = JukeboxConfig()
+        (when {
+            jsonConfig.exists() -> jsonMapper.readValue(jsonConfig, JukeboxConfig::class.java)
+            yamlConfig.exists() -> yamlMapper.readValue(yamlConfig, JukeboxConfig::class.java)
+            else -> JukeboxConfig()
+        }).also { config = it }
 
         logStreams = config.logFiles.mapValues { (_, filename) -> if(filename != null) PrintStream(File(filename)) else emptyPrintStream }
 
@@ -171,7 +170,7 @@ object EternalJukebox {
             it.next()
         }
 
-        config.redirects.forEach { route, path -> mainRouter.route(route).handler { context -> context.response().redirect(path) } }
+        config.redirects.forEach { (route, path) -> mainRouter.route(route).handler { context -> context.response().redirect(path) } }
 
         val runSiteAPI = isEnabled("siteAPI")
 
@@ -213,23 +212,23 @@ object EternalJukebox {
             analyticsProviders = emptyList()
         }
 
-        if (isEnabled("database"))
-            database = config.databaseType.db.objectInstance!!
+        database = if (isEnabled("database"))
+            config.databaseType.db.objectInstance!!
         else
-            database = EmptyDataAPI
+            EmptyDataAPI
 
-        if (isEnabled("audioAPI")) {
+        audio = if (isEnabled("audioAPI")) {
             apis.add(AudioAPI)
 
-            audio = config.audioSourceType?.audio?.objectInstance
+            config.audioSourceType?.audio?.objectInstance
         } else {
-            audio = EmptyDataAPI
+            EmptyDataAPI
         }
 
-        if (isEnabled("audioAPI") || isEnabled("analysisAPI"))
-            spotify = SpotifyAnalyser
+        spotify = if (isEnabled("audioAPI") || isEnabled("analysisAPI"))
+            SpotifyAnalyser
         else
-            spotify = EmptyDataAPI
+            EmptyDataAPI
 
         if (isEnabled("nodeAPI"))
             apis.add(NodeAPI)
@@ -263,5 +262,5 @@ object EternalJukebox {
 //            schedule.scheduleAtFixedRate(0, 1000 * 60 * 60) { hourlyVisitorsAddress.clear() }
     }
 
-    fun isEnabled(function: String): Boolean = config.disable[function] != true
+    private fun isEnabled(function: String): Boolean = config.disable[function] != true
 }

@@ -53,11 +53,11 @@ fun jsonObjectOf(vararg pairs: Pair<String, Any>): JsonObject = JsonObject(pairs
  * Returns null if the file does not exist
  */
 inline fun <T> File.useThenDelete(action: (File) -> T): T? {
-    try {
+    return try {
         if (exists())
-            return action(this)
+            action(this)
         else
-            return null
+            null
     } finally {
         guaranteeDelete()
     }
@@ -103,33 +103,33 @@ fun ScheduledExecutorService.scheduleAtFixedRate(
 fun ScheduledExecutorService.schedule(delay: Long, unit: TimeUnit = TimeUnit.MILLISECONDS, op: () -> Unit) = this.schedule(op, delay, unit)
 
 fun <T : Any> ObjectMapper.tryReadValue(src: ByteArray, klass: KClass<T>): T? {
-    try {
-        return this.readValue(src, klass.java)
+    return try {
+        this.readValue(src, klass.java)
     } catch (jsonProcessing: JsonProcessingException) {
-        return null
+        null
     } catch (jsonMapping: JsonMappingException) {
-        return null
+        null
     } catch (jsonParsing: JsonParseException) {
-        return null
+        null
     }
 }
 
 fun <T : Any> ObjectMapper.tryReadValue(src: InputStream, klass: KClass<T>): T? {
-    try {
-        return this.readValue(src, klass.java)
+    return try {
+        this.readValue(src, klass.java)
     } catch (jsonProcessing: JsonProcessingException) {
-        return null
+        null
     } catch (jsonMapping: JsonMappingException) {
-        return null
+        null
     } catch (jsonParsing: JsonParseException) {
-        return null
+        null
     }
 }
 
 fun String.toBase64LongOrNull(): Long? {
     var i = 0
     val len: Int = length
-    var limit: Long = -Long.Companion.MAX_VALUE
+    val limit: Long = -Long.Companion.MAX_VALUE
 
     return if (len > 0) {
         val multmin: Long = limit / 64
@@ -154,7 +154,7 @@ fun String.toBase64LongOrNull(): Long? {
 fun String.toBase64Long(): Long {
     var i = 0
     val len: Int = length
-    var limit: Long = -Long.Companion.MAX_VALUE
+    val limit: Long = -Long.Companion.MAX_VALUE
 
     return if (len > 0) {
         val multmin: Long = limit / 64

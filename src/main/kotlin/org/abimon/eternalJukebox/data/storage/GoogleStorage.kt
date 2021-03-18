@@ -32,22 +32,24 @@ import java.util.*
 import java.util.concurrent.locks.ReentrantReadWriteLock
 import kotlin.concurrent.read
 
+@ObsoleteCoroutinesApi
 object GoogleStorage : IStorage {
-    val serviceEmail: String
-    val algorithm: Algorithm
+    private val serviceEmail: String
+    private val algorithm: Algorithm
 
-    val accessTokenLock = ReentrantReadWriteLock()
-    var googleAccessToken: String? = null
+    private val accessTokenLock = ReentrantReadWriteLock()
+    private var googleAccessToken: String? = null
+    @ObsoleteCoroutinesApi
     val tokenContext = newSingleThreadContext("Google Storage Token Lock")
 
-    val webClient = WebClient.create(EternalJukebox.vertx)
-    val logger = LoggerFactory.getLogger("GoogleStorage")
+    private val webClient: WebClient = WebClient.create(EternalJukebox.vertx)
+    private val logger = LoggerFactory.getLogger("GoogleStorage")
 
-    val storageBuckets: Map<EnumStorageType, String>
-    val storageFolderPaths: Map<EnumStorageType, String>
-    val storageSupportsCors: MutableList<EnumStorageType>
+    private val storageBuckets: Map<EnumStorageType, String>
+    private val storageFolderPaths: Map<EnumStorageType, String>
+    private val storageSupportsCors: MutableList<EnumStorageType>
 
-    val publicStorageTypes = arrayOf(
+    private val publicStorageTypes = arrayOf(
         EnumStorageType.UPLOADED_AUDIO,
         EnumStorageType.ANALYSIS,
         EnumStorageType.AUDIO,
@@ -58,12 +60,13 @@ object GoogleStorage : IStorage {
     override fun shouldStore(type: EnumStorageType): Boolean =
         accessTokenLock.read { googleAccessToken != null && !disabledStorageTypes.contains(type) && storageBuckets[type] != null }
 
+    @ObsoleteCoroutinesApi
     override suspend fun store(
-        name: String,
-        type: EnumStorageType,
-        data: DataSource,
-        mimeType: String,
-        clientInfo: ClientInfo?
+            name: String,
+            type: EnumStorageType,
+            data: DataSource,
+            mimeType: String,
+            clientInfo: ClientInfo?
     ): Boolean {
         if (!shouldStore(type))
             throw IllegalStateException("[${clientInfo?.userUID}] ERROR: Attempting to store $type, even though we've said not to store it! This is very much a bug!")
@@ -78,24 +81,28 @@ object GoogleStorage : IStorage {
 
         val body = withContext(Dispatchers.IO) { Buffer.buffer(data.use { stream -> stream.readBytes() }) }
 
-        val success = exponentiallyBackoff(64000, 8) { attempt ->
+        return exponentiallyBackoff(64000, 8) { attempt ->
             logger.trace(
-                "[{}${clientInfo?.userUID}] Attempting to store {} as {} in gs://{}/{}; Attempt {}",
-                clientInfo?.userUID,
-                name,
-                type,
-                bucket,
-                fullPath
+                    "[{}${clientInfo?.userUID}] Attempting to store {} as {} in gs://{}/{}; Attempt {}",
+                    clientInfo?.userUID,
+                    name,
+                    type,
+                    bucket,
+                    fullPath
             )
             val response = webClient.postAbs(
-                    "https://www.googleapis.com/upload/storage/v1/b/$bucket/o?uploadType=media&name=${URLEncoder.encode(
-                        fullPath,
-                        "UTF-8"
-                    )}"
-                )
-                .putHeader("Content-Type", mimeType)
-                .bearerTokenAuthentication(accessTokenLock.readAwait { googleAccessToken })
-                .sendBufferAwait(body)
+                    "https://www.googleapis.com/upload/storage/v1/b/$bucket/o?uploadType=media&name=${
+                        withContext(Dispatchers.IO) {
+                            URLEncoder.encode(
+                                    fullPath,
+                                    "UTF-8"
+                            )
+                        }
+                    }"
+            )
+                    .putHeader("Content-Type", mimeType)
+                    .bearerTokenAuthentication(accessTokenLock.readAwait { googleAccessToken })
+                    .sendBufferAwait(body)
 
             when (response.statusCode()) {
                 200 -> {
@@ -110,9 +117,9 @@ object GoogleStorage : IStorage {
                 }
                 400 -> {
                     logger.error(
-                        "[{}] Got back response code 400 with data {}; returning",
-                        clientInfo?.userUID,
-                        response.bodyAsString()
+                            "[{}] Got back response code 400 with data {}; returning",
+                            clientInfo?.userUID,
+                            response.bodyAsString()
                     )
                     errored = true
                     return@exponentiallyBackoff false
@@ -120,15 +127,15 @@ object GoogleStorage : IStorage {
                 401 -> {
                     if (attempt == 0L)
                         logger.error(
-                            "[{}] Got back response code 401; reloading token and trying again",
-                            clientInfo?.userUID,
-                            response.bodyAsString()
+                                "[{}] Got back response code 401; reloading token and trying again",
+                                clientInfo?.userUID,
+                                response.bodyAsString()
                         )
                     else
                         logger.error(
-                            "[{}] Got back response code 401 with data {}; reloading token and trying again",
-                            clientInfo?.userUID,
-                            response.bodyAsString()
+                                "[{}] Got back response code 401 with data {}; reloading token and trying again",
+                                clientInfo?.userUID,
+                                response.bodyAsString()
                         )
 
                     reload()
@@ -136,37 +143,36 @@ object GoogleStorage : IStorage {
                 }
                 403 -> {
                     logger.error(
-                        "[{}] Got back response code 403 with data {}; returning",
-                        clientInfo?.userUID,
-                        response.bodyAsString()
+                            "[{}] Got back response code 403 with data {}; returning",
+                            clientInfo?.userUID,
+                            response.bodyAsString()
                     )
                     errored = true
                     return@exponentiallyBackoff false
                 }
                 404 -> {
                     logger.error(
-                        "[{}] Got back response code 404 with data {}; That is *really* bad; returning",
-                        clientInfo?.userUID,
-                        response.bodyAsString()
+                            "[{}] Got back response code 404 with data {}; That is *really* bad; returning",
+                            clientInfo?.userUID,
+                            response.bodyAsString()
                     )
                     errored = true
                     return@exponentiallyBackoff false
                 }
                 else -> {
                     logger.warn(
-                        "[{}] Got back response code {} with data {}; backing off and trying again",
-                        clientInfo?.userUID,
-                        response.statusCode(),
-                        response.bodyAsString()
+                            "[{}] Got back response code {} with data {}; backing off and trying again",
+                            clientInfo?.userUID,
+                            response.statusCode(),
+                            response.bodyAsString()
                     )
                     return@exponentiallyBackoff true
                 }
             }
         } && !errored
-
-        return success
     }
 
+    @ObsoleteCoroutinesApi
     override suspend fun provide(name: String, type: EnumStorageType, clientInfo: ClientInfo?): DataSource? {
         val bucket = storageBuckets.getValue(type)
         val fullPath = buildString {
@@ -175,13 +181,13 @@ object GoogleStorage : IStorage {
         }
 
         if (isPublic(fullPath, bucket))
-            return HTTPDataSource(URL("https://storage.googleapis.com/$bucket/$fullPath"))
+            return HTTPDataSource(withContext(Dispatchers.IO) {URL("https://storage.googleapis.com/$bucket/$fullPath")})
 
         if (doesObjectExist(fullPath, bucket, clientInfo)) {
             if (type in publicStorageTypes) {
                 if (makePublic(fullPath, bucket, null)) {
                     logger.trace("Made {} public in {}", fullPath, bucket)
-                    return HTTPDataSource(URL("https://storage.googleapis.com/$bucket/$fullPath"))
+                    return HTTPDataSource(withContext(Dispatchers.IO) {URL("https://storage.googleapis.com/$bucket/$fullPath")})
                 } else
                     logger.trace("Failed to make {} public in {}", fullPath, bucket)
             }
@@ -197,10 +203,13 @@ object GoogleStorage : IStorage {
                     attempt
                 )
                 val response = webClient.getAbs(
-                        "https://www.googleapis.com/storage/v1/b/$bucket/o/${URLEncoder.encode(
-                            fullPath,
-                            "UTF-8"
-                        )}?alt=media"
+                    "https://www.googleapis.com/storage/v1/b/$bucket/o/${withContext(Dispatchers.IO) {
+                            URLEncoder.encode(
+                                fullPath,
+                                "UTF-8"
+                            )
+                        }
+                    }?alt=media"
                     )
                     .bearerTokenAuthentication(accessTokenLock.readAwait { googleAccessToken })
                     .sendAwait()
@@ -275,6 +284,7 @@ object GoogleStorage : IStorage {
         return null
     }
 
+    @ObsoleteCoroutinesApi
     override suspend fun provide(
         name: String,
         type: EnumStorageType,
@@ -313,10 +323,13 @@ object GoogleStorage : IStorage {
                     attempt
                 )
                 val localResponse = webClient.getAbs(
-                        "https://www.googleapis.com/storage/v1/b/$bucket/o/${URLEncoder.encode(
-                            fullPath,
-                            "UTF-8"
-                        )}?alt=media"
+                        "https://www.googleapis.com/storage/v1/b/$bucket/o/${withContext(Dispatchers.IO) {
+                            URLEncoder.encode(
+                                fullPath,
+                                "UTF-8"
+                            )
+                        }
+                    }?alt=media"
                     )
                     .bearerTokenAuthentication(accessTokenLock.readAwait { googleAccessToken })
                     .sendAwait()
@@ -396,6 +409,7 @@ object GoogleStorage : IStorage {
         return false
     }
 
+    @ObsoleteCoroutinesApi
     override suspend fun isStored(name: String, type: EnumStorageType): Boolean {
         if (!shouldStore(type))
             return false
@@ -412,7 +426,7 @@ object GoogleStorage : IStorage {
         if (publicResponse.statusCode() == 200)
             return true
 
-        val privateResponse = webClient.headAbs("https://storage.googleapis.com/$bucket/$fullPath")
+        webClient.headAbs("https://storage.googleapis.com/$bucket/$fullPath")
             .bearerTokenAuthentication(accessTokenLock.readAwait { googleAccessToken })
             .sendAwait()
 
@@ -432,7 +446,7 @@ object GoogleStorage : IStorage {
         return false
     }
 
-    suspend fun isPublic(path: String, bucket: String): Boolean {
+    private suspend fun isPublic(path: String, bucket: String): Boolean {
         val publicResponse = webClient.headAbs("https://storage.googleapis.com/$bucket/$path")
             .followRedirects(false)
             .sendAwait()
@@ -440,6 +454,7 @@ object GoogleStorage : IStorage {
         return (publicResponse.statusCode() == 200)
     }
 
+    @ObsoleteCoroutinesApi
     suspend fun makePublic(path: String, bucket: String, clientInfo: ClientInfo?): Boolean {
         if (isPublic(path, bucket)) return true
 
@@ -455,10 +470,12 @@ object GoogleStorage : IStorage {
             )
 
             val response = webClient.postAbs(
-                    "https://www.googleapis.com/storage/v1/b/$bucket/o/${URLEncoder.encode(
-                        path,
-                        "UTF-8"
-                    )}/acl"
+                    "https://www.googleapis.com/storage/v1/b/$bucket/o/${withContext(Dispatchers.IO) {
+                        URLEncoder.encode(
+                                path,
+                                "UTF-8"
+                        )
+                    }}/acl"
                 )
                 .putHeader("Content-Type", "application/json")
                 .bearerTokenAuthentication(accessTokenLock.readAwait { googleAccessToken })
@@ -526,34 +543,39 @@ object GoogleStorage : IStorage {
         } && !errored
     }
 
+    @ObsoleteCoroutinesApi
     suspend fun doesObjectExist(path: String, bucket: String, clientInfo: ClientInfo?): Boolean {
         var errored = false
 
-        val success = exponentiallyBackoff(64000, 8) { attempt ->
+        return exponentiallyBackoff(64000, 8) { attempt ->
             logger.trace(
-                "[{}] Attempting to check if gs://{}/{} exists; Attempt {}",
-                clientInfo?.userUID,
-                bucket,
-                path,
-                attempt
+                    "[{}] Attempting to check if gs://{}/{} exists; Attempt {}",
+                    clientInfo?.userUID,
+                    bucket,
+                    path,
+                    attempt
             )
             val response =
-                webClient.headAbs(
-                        "https://www.googleapis.com/storage/v1/b/$bucket/o/${URLEncoder.encode(
-                            path,
-                            "UTF-8"
-                        )}"
+                    webClient.headAbs(
+                            "https://www.googleapis.com/storage/v1/b/$bucket/o/${
+                                withContext(Dispatchers.IO) {
+                                    URLEncoder.encode(
+                                            path,
+                                            "UTF-8"
+                                    )
+                                }
+                            }"
                     )
-                    .bearerTokenAuthentication(accessTokenLock.readAwait { googleAccessToken })
-                    .sendAwait()
+                            .bearerTokenAuthentication(accessTokenLock.readAwait { googleAccessToken })
+                            .sendAwait()
 
             when (response.statusCode()) {
                 200 -> return@exponentiallyBackoff false
                 400 -> {
                     logger.error(
-                        "[{}] Got back response code 400 with data {}; returning",
-                        clientInfo?.userUID,
-                        response.bodyAsString()
+                            "[{}] Got back response code 400 with data {}; returning",
+                            clientInfo?.userUID,
+                            response.bodyAsString()
                     )
                     errored = true
                     return@exponentiallyBackoff false
@@ -561,25 +583,25 @@ object GoogleStorage : IStorage {
                 401 -> {
                     if (attempt == 0L) {
                         logger.error(
-                            "[{}] Got back response code 401; reloading token and trying again",
-                            clientInfo?.userUID
+                                "[{}] Got back response code 401; reloading token and trying again",
+                                clientInfo?.userUID
                         )
                         reload()
                         return@exponentiallyBackoff true
                     } else {
                         logger.error(
-                            "[{}] Got back response code 401 with data {}; reloading token and trying again",
-                            clientInfo?.userUID,
-                            response.bodyAsString()
+                                "[{}] Got back response code 401 with data {}; reloading token and trying again",
+                                clientInfo?.userUID,
+                                response.bodyAsString()
                         )
                         return@exponentiallyBackoff false
                     }
                 }
                 403 -> {
                     logger.error(
-                        "[{}] Got back response code 403 with data {}; returning",
-                        clientInfo?.userUID,
-                        response.bodyAsString()
+                            "[{}] Got back response code 403 with data {}; returning",
+                            clientInfo?.userUID,
+                            response.bodyAsString()
                     )
                     errored = true
                     return@exponentiallyBackoff false
@@ -590,20 +612,18 @@ object GoogleStorage : IStorage {
                 }
                 else -> {
                     logger.error(
-                        "[{}] Got back response code {} with data {}; backing off and trying again",
-                        clientInfo?.userUID,
-                        response.statusCode(),
-                        response.bodyAsString()
+                            "[{}] Got back response code {} with data {}; backing off and trying again",
+                            clientInfo?.userUID,
+                            response.statusCode(),
+                            response.bodyAsString()
                     )
                     return@exponentiallyBackoff true
                 }
             }
         } && !errored
-
-        return success
     }
 
-    suspend fun reload() {
+    private suspend fun reload() {
         accessTokenLock.writeAwait {
             val now = Instant.now().toEpochMilli()
             val token = JWT.create().withIssuer(serviceEmail)
@@ -611,7 +631,7 @@ object GoogleStorage : IStorage {
                 .withAudience("https://www.googleapis.com/oauth2/v4/token")
                 .withExpiresAt(Date(now + 1 * 60 * 60 * 1000))
                 .withIssuedAt(Date(now)).sign(algorithm)
-            var error: Boolean = false
+            var error = false
 
             val success = exponentiallyBackoff(16000, 8) { attempt ->
                 logger.trace("Attempting to reload Google Storage token; Attempt {}", attempt)
@@ -712,34 +732,35 @@ object GoogleStorage : IStorage {
             val corsTypes =
                 publicStorageTypes.map { storageType -> Pair(storageType, storageBuckets[storageType]) }
                     .distinctBy(Pair<EnumStorageType, String?>::second)
-                    .filter { (storageType, bucket) ->
+                    .filter { (_, bucket) ->
                         if (bucket == null) return@filter false
 
                         var errored = false
-                        val success = exponentiallyBackoff(64000, 8) { attempt ->
+
+                        return@filter exponentiallyBackoff(64000, 8) { attempt ->
                             logger.info("Attempting to get {} to support CORS; Attempt {}", bucket, attempt)
 
                             val response = webClient.patchAbs("https://www.googleapis.com/storage/v1/b/$bucket")
-                                .putHeader("Content-Type", "application/json")
-                                .bearerTokenAuthentication(accessTokenLock.readAwait { googleAccessToken })
-                                .sendJsonAwait(
-                                    mapOf(
-                                        "cors" to arrayOf(
+                                    .putHeader("Content-Type", "application/json")
+                                    .bearerTokenAuthentication(accessTokenLock.readAwait { googleAccessToken })
+                                    .sendJsonAwait(
                                             mapOf(
-                                                "method" to arrayOf(
-                                                    "*"
-                                                ), "origin" to arrayOf("*")
+                                                    "cors" to arrayOf(
+                                                            mapOf(
+                                                                    "method" to arrayOf(
+                                                                            "*"
+                                                                    ), "origin" to arrayOf("*")
+                                                            )
+                                                    )
                                             )
-                                        )
                                     )
-                                )
 
                             when (response.statusCode()) {
                                 200 -> return@exponentiallyBackoff false
                                 400 -> {
                                     logger.error(
-                                        "Got back response code 400 with data {}; returning",
-                                        response.bodyAsString()
+                                            "Got back response code 400 with data {}; returning",
+                                            response.bodyAsString()
                                     )
                                     errored = true
                                     return@exponentiallyBackoff false
@@ -751,16 +772,16 @@ object GoogleStorage : IStorage {
                                         return@exponentiallyBackoff true
                                     } else {
                                         logger.error(
-                                            "Got back response code 401 with data {}; reloading token and trying again",
-                                            response.bodyAsString()
+                                                "Got back response code 401 with data {}; reloading token and trying again",
+                                                response.bodyAsString()
                                         )
                                         return@exponentiallyBackoff false
                                     }
                                 }
                                 403 -> {
                                     logger.error(
-                                        "Got back response code 403 with data {}; returning",
-                                        response.bodyAsString()
+                                            "Got back response code 403 with data {}; returning",
+                                            response.bodyAsString()
                                     )
                                     errored = true
                                     return@exponentiallyBackoff false
@@ -771,22 +792,21 @@ object GoogleStorage : IStorage {
                                 }
                                 else -> {
                                     logger.warn(
-                                        "Got back response code {} with data {}; backing off and trying again",
-                                        response.statusCode(),
-                                        response.bodyAsString()
+                                            "Got back response code {} with data {}; backing off and trying again",
+                                            response.statusCode(),
+                                            response.bodyAsString()
                                     )
                                     return@exponentiallyBackoff true
                                 }
                             }
                         } && !errored
-
-                        return@filter success
                     }.map(Pair<EnumStorageType, *>::first)
             storageSupportsCors.addAll(corsTypes)
         }
     }
 
 
+    @ObsoleteCoroutinesApi
     suspend inline fun <T> ReentrantReadWriteLock.readAwait(crossinline action: suspend () -> T): T =
         withContext(tokenContext) {
             val rl = readLock()
@@ -798,7 +818,7 @@ object GoogleStorage : IStorage {
             }
         }
 
-    suspend inline fun <T> ReentrantReadWriteLock.writeAwait(crossinline action: suspend () -> T): T =
+    private suspend inline fun <T> ReentrantReadWriteLock.writeAwait(crossinline action: suspend () -> T): T =
         withContext(tokenContext) {
             val rl = readLock()
 

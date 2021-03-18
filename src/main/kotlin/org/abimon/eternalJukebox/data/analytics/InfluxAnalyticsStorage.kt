@@ -9,10 +9,10 @@ import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
 
 object InfluxAnalyticsStorage : IAnalyticsStorage {
-    val ip: String = EternalJukebox.config.analyticsStorageOptions["ip"] as? String ?: throw IllegalStateException()
-    val db: String = URLEncoder.encode(EternalJukebox.config.analyticsStorageOptions["db"] as? String ?: throw IllegalStateException(), "UTF-8")
-    val user: String? = EternalJukebox.config.analyticsStorageOptions["user"] as? String
-    val pass: String? = EternalJukebox.config.analyticsStorageOptions["pass"] as? String
+    private val ip: String = EternalJukebox.config.analyticsStorageOptions["ip"] as? String ?: throw IllegalStateException()
+    private val db: String = URLEncoder.encode(EternalJukebox.config.analyticsStorageOptions["db"] as? String ?: throw IllegalStateException(), "UTF-8")
+    private val user: String? = EternalJukebox.config.analyticsStorageOptions["user"] as? String
+    private val pass: String? = EternalJukebox.config.analyticsStorageOptions["pass"] as? String
 
     override fun shouldStore(type: EnumAnalyticType<*>): Boolean = true
     override fun <T : Any> store(now: Long, data: T, type: EnumAnalyticType<T>): Boolean {

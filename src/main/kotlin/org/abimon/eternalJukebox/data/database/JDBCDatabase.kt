@@ -2,7 +2,9 @@ package org.abimon.eternalJukebox.data.database
 
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 
+@ExperimentalCoroutinesApi
 object JDBCDatabase: HikariDatabase() {
     override val ds: HikariDataSource
 

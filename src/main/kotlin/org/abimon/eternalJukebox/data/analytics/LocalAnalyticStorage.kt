@@ -16,8 +16,8 @@ import java.util.*
 import kotlin.collections.HashMap
 
 object LocalAnalyticStorage : IAnalyticsStorage {
-    val storageLocations: Map<EnumAnalyticType<*>, File> = EnumAnalyticType.VALUES.map { type -> type to File(EternalJukebox.config.analyticsStorageOptions["${type::class.simpleClassName.toUpperCase()}_FILE"] as? String ?: "analytics-${type::class.simpleClassName.toLowerCase()}.log") }.toMap()
-    val storageStreams: MutableMap<EnumAnalyticType<*>, PrintStream> = HashMap()
+    private val storageLocations: Map<EnumAnalyticType<*>, File> = EnumAnalyticType.VALUES.map { type -> type to File(EternalJukebox.config.analyticsStorageOptions["${type::class.simpleClassName.toUpperCase()}_FILE"] as? String ?: "analytics-${type::class.simpleClassName.toLowerCase()}.log") }.toMap()
+    private val storageStreams: MutableMap<EnumAnalyticType<*>, PrintStream> = HashMap()
 
     override fun shouldStore(type: EnumAnalyticType<*>): Boolean = true
     override fun <T : Any> store(now: Long, data: T, type: EnumAnalyticType<T>): Boolean {

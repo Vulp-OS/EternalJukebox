@@ -8,15 +8,15 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
 object HTTPAnalyticsProvider: IAnalyticsProvider {
-    val scheduler = Executors.newSingleThreadScheduledExecutor()
+    private val scheduler = Executors.newSingleThreadScheduledExecutor()
 
-    val requests: AtomicInteger = AtomicInteger(0)
-    val hourlyRequests: AtomicInteger = AtomicInteger(0)
+    private val requests: AtomicInteger = AtomicInteger(0)
+    private val hourlyRequests: AtomicInteger = AtomicInteger(0)
 
-    val uniqueVisitors: AtomicInteger = AtomicInteger(0)
-    val hourlyUniqueVisitors: AtomicInteger = AtomicInteger(0)
+    // val uniqueVisitors: AtomicInteger = AtomicInteger(0)
+    // val hourlyUniqueVisitors: AtomicInteger = AtomicInteger(0)
 
-    val PROVIDING = arrayOf(
+    private val PROVIDING = arrayOf(
             EnumAnalyticType.SESSION_REQUESTS, EnumAnalyticType.HOURLY_REQUESTS
     )
 

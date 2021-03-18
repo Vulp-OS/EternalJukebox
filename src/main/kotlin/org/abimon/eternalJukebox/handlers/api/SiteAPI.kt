@@ -21,12 +21,12 @@ import java.time.LocalDateTime
 object SiteAPI: IAPI {
     override val mountPath: String = "/site"
     override val name: String = "Site"
-    val startupTime: LocalDateTime = LocalDateTime.now()
+    private val startupTime: LocalDateTime = LocalDateTime.now()
 
-    val memoryFormat = DecimalFormat("####.##")
-    val cpuFormat = DecimalFormat("#.####")
+    private val memoryFormat = DecimalFormat("####.##")
+    private val cpuFormat = DecimalFormat("#.####")
 
-    val osBean = ManagementFactory.getOperatingSystemMXBean() as OperatingSystemMXBean
+    private val osBean = ManagementFactory.getOperatingSystemMXBean() as OperatingSystemMXBean
 
     override fun setup(router: Router) {
         router.get("/healthy").handler { it.response().end("Up for ${startupTime.timeDifference()}") }
@@ -41,14 +41,14 @@ object SiteAPI: IAPI {
         router.get("/popular/:service").suspendingHandler(this::popular)
     }
 
-    suspend fun popular(context: RoutingContext) {
+    private suspend fun popular(context: RoutingContext) {
         val service = context.pathParam("service")
         val count = context.request().getParam("count")?.toIntOrNull() ?: context.request().getParam("limit")?.toIntOrNull() ?: 10
 
         context.response().putHeader("X-Client-UID", context.clientInfo.userUID).end(JsonArray(withContext(Dispatchers.IO) { EternalJukebox.database.providePopularSongs(service, count, context.clientInfo) }))
     }
 
-    fun usage(context: RoutingContext) {
+    private fun usage(context: RoutingContext) {
         val rows = arrayOf(
                 "Uptime" to startupTime.timeDifference().format(),
                 "Total Memory" to ByteUnit(Runtime.getRuntime().totalMemory()).toMegabytes().format(memoryFormat),
@@ -61,14 +61,14 @@ object SiteAPI: IAPI {
         context.response().putHeader("X-Client-UID", context.clientInfo.userUID).end(FlipTable.of(arrayOf("Key", "Value"), rows.map { (one, two) -> arrayOf(one, two) }.toTypedArray()))
     }
 
-    suspend fun expand(context: RoutingContext) {
+    private suspend fun expand(context: RoutingContext) {
         val id = context.pathParam("id")
         val clientInfo = context.clientInfo
         val expanded = expand(id, clientInfo) ?: return context.response().putHeader("X-Client-UID", clientInfo.userUID).setStatusCode(400).end(jsonObjectOf("error" to "No short ID stored", "id" to id))
         context.response().end(expanded)
     }
 
-    suspend fun expandAndRedirect(context: RoutingContext) {
+    private suspend fun expandAndRedirect(context: RoutingContext) {
         val id = context.pathParam("id")
         val clientInfo = context.clientInfo
         val expanded = expand(id, clientInfo) ?: return context.response().putHeader("X-Client-UID", clientInfo.userUID).setStatusCode(400).end(jsonObjectOf("error" to "No short ID stored", "id" to id))
@@ -76,7 +76,7 @@ object SiteAPI: IAPI {
         context.response().redirect(expanded.getString("url"))
     }
 
-    suspend fun expand(id: String, clientInfo: ClientInfo): JsonObject? {
+    private suspend fun expand(id: String, clientInfo: ClientInfo): JsonObject? {
         val params = withContext(Dispatchers.IO) { EternalJukebox.database.expandShortURL(id, clientInfo) } ?: return null
         val paramsMap = params.map { pair -> pair.split('=', limit = 2) }.filter { pair -> pair.size == 2 }.map { pair -> Pair(pair[0], pair[1]) }.toMap(HashMap())
 
@@ -98,7 +98,7 @@ object SiteAPI: IAPI {
         return response
     }
 
-    suspend fun shrink(context: RoutingContext) {
+    private suspend fun shrink(context: RoutingContext) {
         val params = context.bodyAsString.split('&').toTypedArray()
         val id = withContext(Dispatchers.IO) { EternalJukebox.database.provideShortURL(params, context.clientInfo) }
         context.response().putHeader("X-Client-UID", context.clientInfo.userUID).end(jsonObjectOf("id" to id, "params" to params))

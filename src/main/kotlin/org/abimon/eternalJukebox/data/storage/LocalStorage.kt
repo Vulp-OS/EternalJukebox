@@ -1,6 +1,8 @@
 package org.abimon.eternalJukebox.data.storage
 
 import io.vertx.ext.web.RoutingContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.abimon.eternalJukebox.EternalJukebox
 import org.abimon.eternalJukebox.objects.ClientInfo
 import org.abimon.eternalJukebox.objects.EnumStorageType
@@ -10,13 +12,15 @@ import java.io.File
 import java.io.FileOutputStream
 
 object LocalStorage : IStorage {
-    val storageLocations: Map<EnumStorageType, File> = EnumStorageType.values().map { type -> type to File(EternalJukebox.config.storageOptions["${type.name}_FOLDER"] as? String ?: type.name.toLowerCase()) }.toMap()
+    private val storageLocations: Map<EnumStorageType, File> = EnumStorageType.values().map { type -> type to File(EternalJukebox.config.storageOptions["${type.name}_FOLDER"] as? String ?: type.name.toLowerCase()) }.toMap()
 
     override fun shouldStore(type: EnumStorageType): Boolean = !disabledStorageTypes.contains(type)
 
     override suspend fun store(name: String, type: EnumStorageType, data: DataSource, mimeType: String, clientInfo: ClientInfo?): Boolean {
-        FileOutputStream(File(storageLocations[type]!!, name)).use { fos -> data.use { inputStream -> inputStream.copyTo(fos) } }
-        return true
+        withContext(Dispatchers.IO) {
+            FileOutputStream(File(storageLocations[type]!!, name)).use { fos -> data.use { inputStream -> inputStream.copyTo(fos) } }
+        }
+            return true
     }
 
     override suspend fun provide(name: String, type: EnumStorageType, clientInfo: ClientInfo?): DataSource? {

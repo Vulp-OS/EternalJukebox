@@ -24,16 +24,16 @@ import java.util.concurrent.TimeUnit
 object AudioAPI : IAPI {
     override val mountPath: String = "/audio"
     override val name: String = "Audio"
-    val logger = LoggerFactory.getLogger("AudioApi")
+    private val logger = LoggerFactory.getLogger("AudioApi")
 
-    val format: String
+    private val format: String
         get() = EternalJukebox.config.audioSourceOptions["AUDIO_FORMAT"] as? String ?: "m4a"
-    val uuid: String
+    private val uuid: String
         get() = UUID.randomUUID().toString()
 
-    val base64Encoder: Base64.Encoder by lazy { Base64.getUrlEncoder() }
+    private val base64Encoder: Base64.Encoder by lazy { Base64.getUrlEncoder() }
 
-    val mime: String
+    private val mime: String
         get() = EternalJukebox.config.audioSourceOptions["AUDIO_MIME"] as? String ?: run {
             when (format) {
                 "m4a" -> return@run "audio/m4a"
@@ -54,7 +54,7 @@ object AudioAPI : IAPI {
         router.post("/upload").suspendingHandler(this::upload)
     }
 
-    suspend fun jukeboxAudio(context: RoutingContext) {
+    private suspend fun jukeboxAudio(context: RoutingContext) {
         if (EternalJukebox.storage.shouldStore(EnumStorageType.AUDIO)) {
             val id = context.pathParam("id")
 
@@ -132,7 +132,7 @@ object AudioAPI : IAPI {
         }
     }
 
-    suspend fun jukeboxLocation(context: RoutingContext) {
+    private suspend fun jukeboxLocation(context: RoutingContext) {
         val id = context.pathParam("id")
 
         val audioOverride = withContext(Dispatchers.IO) { EternalJukebox.database.provideAudioTrackOverride(id, context.clientInfo) }
@@ -155,7 +155,7 @@ object AudioAPI : IAPI {
     }
 
     // url -> fallbackURL -> fallbackID
-    suspend fun externalAudio(context: RoutingContext) {
+    private suspend fun externalAudio(context: RoutingContext) {
         val url = context.request().getParam("url")
 
         if (url != null) {
@@ -167,7 +167,7 @@ object AudioAPI : IAPI {
                         url
                     )
                     return context.reroute(
-                        "/api" + mountPath + "/jukebox/${context.request().getParam("fallbackID")
+                        "/api$mountPath" + "/jukebox/${context.request().getParam("fallbackID")
                             ?: "7GhIk7Il098yCjg4BQjzvb"}"
                     )
                 }
@@ -188,7 +188,7 @@ object AudioAPI : IAPI {
                         )
                         if (data != null)
                             return context.response().putHeader("X-Client-UID", context.clientInfo.userUID)
-                                .end(data, AudioAPI.mime)
+                                .end(data, mime)
                     } else
                         return
                 } else {
@@ -200,12 +200,12 @@ object AudioAPI : IAPI {
                         format
                     )
                     return context.reroute(
-                        "/api" + mountPath + "/jukebox/${context.request().getParam("fallbackID")
+                        "/api$mountPath" + "/jukebox/${context.request().getParam("fallbackID")
                             ?: "7GhIk7Il098yCjg4BQjzvb"}"
                     )
                 }
             } else {
-                val (_, response) = Fuel.headOrGet(url)
+                val (_, response) = headOrGet(url)
                 if (response.statusCode < 300) {
                     val mime = response.headers["Content-Type"].firstOrNull()
 
@@ -390,13 +390,13 @@ object AudioAPI : IAPI {
                 }
             }
             context.reroute(
-                "/api" + mountPath + "/jukebox/${context.request().getParam("fallbackID")
+                "/api$mountPath" + "/jukebox/${context.request().getParam("fallbackID")
                     ?: "7GhIk7Il098yCjg4BQjzvb"}"
             )
         }
     }
 
-    suspend fun upload(context: RoutingContext) {
+    private suspend fun upload(context: RoutingContext) {
         if (!EternalJukebox.storage.shouldStore(EnumStorageType.UPLOADED_AUDIO)) {
             return context.endWithStatusCode(502) {
                 this["error"] = "This server does not support uploaded audio"
@@ -460,7 +460,7 @@ object AudioAPI : IAPI {
         }
     }
 
-    fun Fuel.headOrGet(url: String): Pair<Request, Response> {
+    private fun headOrGet(url: String): Pair<Request, Response> {
         val (headRequest, headResponse) = Fuel.head(url).response()
 
         if (headResponse.statusCode == 404) {

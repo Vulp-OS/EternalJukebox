@@ -26,7 +26,7 @@ import kotlin.random.Random
  * *          configured machine id - 10 bits - gives us up to 1024 machines
  * *          sequence number - 12 bits - rolls over every 4096 per machine (with protection to avoid rollover in the same ms)
  */
-class LocalisedSnowstorm constructor(private val twepoch: Long = LocalisedSnowstorm.defaultEpoch, datacenterOverride: Long? = null) {
+class LocalisedSnowstorm constructor(private val twepoch: Long = defaultEpoch, datacenterOverride: Long? = null) {
 
     //   id format  =>
     //   timestamp |datacenter | sequence
@@ -60,10 +60,9 @@ class LocalisedSnowstorm constructor(private val twepoch: Long = LocalisedSnowst
             sequence = 0
         }
         lastTimestamp = timestamp
-        val id = timestamp - twepoch shl timestampLeftShift or
+        return timestamp - twepoch shl timestampLeftShift or
                 (datacenterId shl datacenterIdShift) or
                 sequence.toLong()
-        return id
     }
 
     private suspend fun tilNextMillis(lastTimestamp: Long): Long {
@@ -93,13 +92,12 @@ class LocalisedSnowstorm constructor(private val twepoch: Long = LocalisedSnowst
                 .flatMap { network -> network.inetAddresses.asSequence() }
                 .firstOrNull(InetAddress::isSiteLocalAddress)
 
-            val id: Int
-            when (addr) {
-                null -> id = Random.nextInt(0, 1023)
+            val id: Int = when (addr) {
+                null -> Random.nextInt(0, 1023)
                 else -> {
                     val addrData = addr.address
 
-                    id = (addrData[addrData.size - 2].toInt() and 0x3 shl 8) or (addrData[addrData.size - 1].toInt() and 0xFF)
+                    (addrData[addrData.size - 2].toInt() and 0x3 shl 8) or (addrData[addrData.size - 1].toInt() and 0xFF)
                 }
             }
 
@@ -126,7 +124,7 @@ class LocalisedSnowstorm constructor(private val twepoch: Long = LocalisedSnowst
     }
 
     companion object WeatherMap {
-        private val defaultEpoch = 1288834974657L
+        private const val defaultEpoch = 1288834974657L
 
         private val snowstorms = HashMap<Long, LocalisedSnowstorm>()
 

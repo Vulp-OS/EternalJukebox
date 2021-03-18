@@ -42,6 +42,9 @@ fabric.properties
 .vertx/
 EternalJukebox.iml
 audio/
+gradle/
+gradlew
+gradlew.bat
 info/
 config.json
 logs/

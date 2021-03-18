@@ -5,7 +5,7 @@ import org.abimon.eternalJukebox.data.analytics.IAnalyticsProvider
 import org.abimon.eternalJukebox.data.analytics.SystemAnalyticsProvider
 import kotlin.reflect.KClass
 
-enum class EnumAnalyticsProvider(val klass: KClass<out IAnalyticsProvider>) {
+enum class EnumAnalyticsProvider(private val klass: KClass<out IAnalyticsProvider>) {
     SYSTEM(SystemAnalyticsProvider::class),
     HTTP(HTTPAnalyticsProvider::class);
 

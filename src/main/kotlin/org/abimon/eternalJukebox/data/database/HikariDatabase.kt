@@ -22,56 +22,57 @@ import kotlin.concurrent.write
 
 abstract class HikariDatabase : IDatabase {
     abstract val ds: HikariDataSource
-    val TIME_BETWEEN_UPDATES_MS = EternalJukebox.config.hikariBatchTimeBetweenUpdatesMs
-    val SHORT_ID_UPDATE_TIME_MS = EternalJukebox.config.hikariBatchShortIDUpdateTimeMs
+    private val TIME_BETWEEN_UPDATES_MS = EternalJukebox.config.hikariBatchTimeBetweenUpdatesMs
+    private val SHORT_ID_UPDATE_TIME_MS = EternalJukebox.config.hikariBatchShortIDUpdateTimeMs
 
-    val popularLocks: Map<String, ReentrantReadWriteLock> =
+    private val popularLocks: Map<String, ReentrantReadWriteLock> =
         mapOf("jukebox" to ReentrantReadWriteLock(), "canonizer" to ReentrantReadWriteLock())
     val popularUpdates: Map<String, Channel<String>> =
         mapOf("jukebox" to Channel(Channel.BUFFERED), "canonizer" to Channel(Channel.BUFFERED))
-    val popularSongs: MutableMap<String, Array<String>> =
+    private val popularSongs: MutableMap<String, Array<String>> =
         mutableMapOf("jukebox" to emptyArray(), "canonizer" to emptyArray())
-    val locationUpdates: Channel<Pair<String, String>> =
+    private val locationUpdates: Channel<Pair<String, String>> =
         Channel(Channel.BUFFERED)
-    val shortIDUpdates: Channel<Pair<Long, String>> =
+    private val shortIDUpdates: Channel<Pair<Long, String>> =
         Channel(Channel.BUFFERED)
-    val infoUpdates: Channel<JukeboxInfo> =
+    private val infoUpdates: Channel<JukeboxInfo> =
         Channel(Channel.BUFFERED)
 
-    val infoCache: AsyncCache<String, JukeboxInfo> = Caffeine.newBuilder()
+    private val infoCache: AsyncCache<String, JukeboxInfo> = Caffeine.newBuilder()
         .expireAfterAccess(EternalJukebox.config.jukeboxInfoCacheStayDurationMinutes.toLong(), TimeUnit.MINUTES)
         .maximumSize(EternalJukebox.config.maximumJukeboxInfoCacheSize)
         .buildAsync()
 
-    val shortIDCache: AsyncCache<Long, String> = Caffeine.newBuilder()
+    private val shortIDCache: AsyncCache<Long, String> = Caffeine.newBuilder()
         .expireAfterAccess(EternalJukebox.config.shortIDCacheStayDurationMinutes.toLong(), TimeUnit.MINUTES)
         .maximumSize(EternalJukebox.config.maximumShortIDCacheSize)
         .buildAsync()
 
-    val shortIDReverseCache: AsyncCache<String, Long> = Caffeine.newBuilder()
+    private val shortIDReverseCache: AsyncCache<String, Long> = Caffeine.newBuilder()
         .expireAfterAccess(EternalJukebox.config.shortIDCacheStayDurationMinutes.toLong(), TimeUnit.MINUTES)
         .maximumSize(EternalJukebox.config.maximumShortIDCacheSize)
         .buildAsync()
 
-    val overridesCache: AsyncCache<String, String> = Caffeine.newBuilder()
+    private val overridesCache: AsyncCache<String, String> = Caffeine.newBuilder()
         .expireAfterAccess(EternalJukebox.config.overridesCacheStayDurationMinutes.toLong(), TimeUnit.MINUTES)
         .maximumSize(EternalJukebox.config.maximumOverridesCacheSize)
         .buildAsync()
 
-    val locationCache: AsyncCache<String, String> = Caffeine.newBuilder()
+    private val locationCache: AsyncCache<String, String> = Caffeine.newBuilder()
         .expireAfterAccess(EternalJukebox.config.locationsCacheStayDurationMinutes.toLong(), TimeUnit.MINUTES)
         .maximumSize(EternalJukebox.config.maximumLocationCacheSize)
         .buildAsync()
 
-    val shortIDStorm = LocalisedSnowstorm.getInstance(1585659600000L)
+    private val shortIDStorm = LocalisedSnowstorm.getInstance(1585659600000L)
 
+    @ObsoleteCoroutinesApi
     val dispatcher = newSingleThreadContext("HikariPropagateDispatcher")
 
     override suspend fun provideAudioTrackOverride(id: String, clientInfo: ClientInfo?): String? {
-        val cachedValue = overridesCache.get(id) { id ->
+        val cachedValue = overridesCache.get(id) { _id ->
             use { connection ->
                 val select = connection.prepareStatement("SELECT * FROM overrides WHERE id=?;")
-                select.setString(1, id)
+                select.setString(1, _id)
                 select.execute()
 
                 val results = select.resultSet
@@ -260,6 +261,7 @@ abstract class HikariDatabase : IDatabase {
         return cachedValue.await()
     }
 
+    @ObsoleteCoroutinesApi
     override fun makeSongPopular(service: String, id: String, clientInfo: ClientInfo?) {
 //        use { connection ->
 //            val insertUpdate =
@@ -402,7 +404,7 @@ abstract class HikariDatabase : IDatabase {
          */
     }
 
-    suspend fun obtainNewShortID(): Long {
+    private suspend fun obtainNewShortID(): Long {
 //        for (i in 0 until 4096) {
 //            val id =
 //                buildString {
@@ -433,7 +435,7 @@ abstract class HikariDatabase : IDatabase {
         return shortIDStorm.generateLongId()
     }
 
-    inline infix fun <T> use(op: (Connection) -> T): T = ds.connection.use(op)
+    private inline infix fun <T> use(op: (Connection) -> T): T = ds.connection.use(op)
 
     open fun updatePopular(connection: Connection, updates: Map<String, Int>) {
         val insertUpdate =
@@ -491,6 +493,7 @@ abstract class HikariDatabase : IDatabase {
         }
     }
 
+    @ExperimentalCoroutinesApi
     fun initialise() {
         use { connection ->
             //            connection.createStatement().execute("USE $databaseName")

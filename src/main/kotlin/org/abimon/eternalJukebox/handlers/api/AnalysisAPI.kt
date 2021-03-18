@@ -14,14 +14,14 @@ import org.slf4j.LoggerFactory
 object AnalysisAPI : IAPI {
     override val mountPath: String = "/analysis"
     override val name: String = "ANALYSIS"
-    val logger = LoggerFactory.getLogger("AnalysisApi")
+    private val logger = LoggerFactory.getLogger("AnalysisApi")
 
     override fun setup(router: Router) {
         router.get("/analyse/:id").suspendingHandler(this::analyseSpotify)
         router.get("/search").suspendingHandler(AnalysisAPI::searchSpotify)
     }
 
-    suspend fun analyseSpotify(context: RoutingContext) {
+    private suspend fun analyseSpotify(context: RoutingContext) {
         if (EternalJukebox.storage.shouldStore(EnumStorageType.ANALYSIS)) {
             val id = context.pathParam("id")
             val update = context.request().getParam("update")?.toBoolean() ?: false
@@ -65,7 +65,7 @@ object AnalysisAPI : IAPI {
         }
     }
 
-    suspend fun searchSpotify(context: RoutingContext) {
+    private suspend fun searchSpotify(context: RoutingContext) {
         val query = context.request().getParam("query") ?: "Never Gonna Give You Up"
         val results = EternalJukebox.spotify.search(query, context.clientInfo)
 
